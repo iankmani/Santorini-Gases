@@ -12,3 +12,23 @@ datasource db {
   provider = "postgresql"
   url      = env("DATABASE_URL")
 }
+
+model Transaction {
+  id                  Int      @id @default(autoincrement())
+  phoneNumber         String
+  amount              Float
+  accountReference    String
+  checkoutRequestID   String   @unique
+  merchantRequestID   String   @unique
+  mpesaReceiptNumber  String?
+  transactionDate     DateTime?
+  status              TransactionStatus @default(PENDING)
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+}
+
+enum TransactionStatus {
+  PENDING
+  SUCCESS
+  FAILED
+}

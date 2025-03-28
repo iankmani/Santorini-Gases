@@ -14,10 +14,21 @@ const Checkout = () => {
   // Calculate total price
   const total = cart.reduce((sum, item) => sum + item.price * item.quantity, 0);
 
+  // Validate M-Pesa phone number
+  const isValidPhone = (phone) => {
+    const regex = /^254(7|1)\d{8}$/;
+    return regex.test(phone);
+  };
+
   // Handle M-Pesa payment
   const handleMpesaPayment = async () => {
-    if (!phone || phone.length < 10) {
-      toast.error("Please enter a valid M-Pesa phone number (e.g., 2547XXXXXXXX)");
+    if (!isValidPhone(phone)) {
+      toast.error("Please enter a valid M-Pesa phone number (e.g., 254712345678)");
+      return;
+    }
+
+    if (total <= 0) {
+      toast.error("Your cart is empty");
       return;
     }
 
@@ -34,21 +45,28 @@ const Checkout = () => {
           phone: phone,
           amount: total,
           accountReference: `GAS-${Date.now()}`,
+          transactionDesc: "Gas purchase",
         }),
       });
 
-      const data = await response.json();
-
-      if (response.ok) {
-        toast.success("M-Pesa payment request sent! Check your phone to complete payment");
-        // Poll for payment completion (simplified example)
-        setTimeout(() => {
-          clearCart();
-          navigate("/order-confirmation");
-        }, 30000); // Wait 30 seconds before redirecting (in real app, poll backend)
-      } else {
-        throw new Error(data.error || "Payment failed");
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || "Payment request failed");
       }
+
+      const data = await response.json();
+      
+      toast.success(
+        <div>
+          <p>M-Pesa payment request sent!</p>
+          <p>Check your phone to complete payment</p>
+        </div>,
+        { autoClose: false }
+      );
+
+      // Start polling for payment status
+      await checkPaymentStatus(data.checkoutRequestID);
+      
     } catch (error) {
       toast.error(`Payment error: ${error.message}`);
       console.error("Payment error:", error);
@@ -57,67 +75,118 @@ const Checkout = () => {
     }
   };
 
+  // Poll payment status
+  const checkPaymentStatus = async (checkoutRequestID) => {
+    let attempts = 0;
+    const maxAttempts = 10;
+    const interval = 3000; // 3 seconds
+    
+    const poll = async () => {
+      attempts++;
+      try {
+        const response = await fetch(`http://localhost:3001/api/mpesa/status?checkoutRequestID=${checkoutRequestID}`);
+        const data = await response.json();
+        
+        if (data.status === "success") {
+          clearCart();
+          navigate("/order-confirmation", { state: { transaction: data } });
+          return;
+        }
+        
+        if (attempts < maxAttempts) {
+          setTimeout(poll, interval);
+        } else {
+          toast.warn("Payment verification timeout. Please check your M-Pesa messages.");
+        }
+      } catch (error) {
+        console.error("Polling error:", error);
+        if (attempts < maxAttempts) {
+          setTimeout(poll, interval);
+        }
+      }
+    };
+    
+    await poll();
+  };
+
   return (
     <div className="checkout-page">
+      <button className="back-button" onClick={() => navigate(-1)}>
+        &larr; Back to Cart
+      </button>
+      
       <h1>Checkout</h1>
 
       <div className="checkout-container">
-        {/* Payment Method Selection */}
-        <div className="payment-method">
-          <h2>Payment Method</h2>
-          <div className="payment-option">
-            <input
-              type="radio"
-              id="mpesa"
-              name="payment"
-              value="mpesa"
-              defaultChecked
-            />
-            <label htmlFor="mpesa">M-Pesa</label>
-          </div>
-        </div>
-
-        {/* M-Pesa Payment Form */}
-        <div className="mpesa-form">
-          <h2>M-Pesa Payment Details</h2>
-          <div className="form-group">
-            <label>M-Pesa Phone Number</label>
-            <input
-              type="tel"
-              placeholder="2547XXXXXXXX"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              required
-            />
-            <small>Format: 2547XXXXXXXX (e.g., 254712345678)</small>
-          </div>
-
-          <button
-            className="pay-now-btn"
-            onClick={handleMpesaPayment}
-            disabled={isProcessing}
-          >
-            {isProcessing ? "Processing..." : "Pay with M-Pesa"}
-          </button>
-        </div>
-
         {/* Order Summary */}
         <div className="order-summary">
           <h2>Order Summary</h2>
           <div className="order-items">
-            {cart.map((item) => (
-              <div key={item.id} className="order-item">
-                <img src={item.image} alt={item.name} className="item-image" />
-                <div className="item-details">
-                  <h4>{item.name}</h4>
-                  <p>Quantity: {item.quantity}</p>
-                  <p>Price: ${item.price.toFixed(2)}</p>
+            {cart.length === 0 ? (
+              <p>Your cart is empty</p>
+            ) : (
+              cart.map((item) => (
+                <div key={item.id} className="order-item">
+                  <img src={item.image} alt={item.name} className="item-image" />
+                  <div className="item-details">
+                    <h4>{item.name}</h4>
+                    <p>Quantity: {item.quantity}</p>
+                    <p>Price: ${item.price.toFixed(2)}</p>
+                  </div>
                 </div>
-              </div>
-            ))}
+              ))
+            )}
           </div>
           <div className="order-total">
             <h3>Total: KES {total.toFixed(2)}</h3>
+          </div>
+        </div>
+
+        {/* Payment Section */}
+        <div className="payment-section">
+          <div className="payment-method">
+            <h2>Payment Method</h2>
+            <div className="payment-option">
+              <input
+                type="radio"
+                id="mpesa"
+                name="payment"
+                value="mpesa"
+                defaultChecked
+                disabled={isProcessing}
+              />
+              <label htmlFor="mpesa">M-Pesa</label>
+            </div>
+          </div>
+
+          <div className="mpesa-form">
+            <h2>M-Pesa Payment Details</h2>
+            <div className="form-group">
+              <label>M-Pesa Phone Number</label>
+              <input
+                type="tel"
+                placeholder="2547XXXXXXXX"
+                value={phone}
+                onChange={(e) => setPhone(e.target.value)}
+                required
+                disabled={isProcessing}
+              />
+              <small>Format: 2547XXXXXXXX (e.g., 254712345678)</small>
+            </div>
+
+            <button
+              className={`pay-now-btn ${isProcessing ? "processing" : ""}`}
+              onClick={handleMpesaPayment}
+              disabled={isProcessing || cart.length === 0}
+            >
+              {isProcessing ? (
+                <>
+                  <span className="spinner"></span> Processing...
+                </>
+              ) : (
+                "Pay with M-Pesa"
+              )}
+            </button>
           </div>
         </div>
       </div>
