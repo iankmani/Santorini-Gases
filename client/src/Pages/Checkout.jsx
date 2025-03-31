@@ -57,7 +57,7 @@ const Checkout = () => {
       await checkPaymentStatus(data.checkoutRequestID);
       
     } catch (error) {
-      console.error("Full error object:", error); // Log complete error
+      // console.error("Full error object:", error); // Log complete error
       toast.error(`Payment failed: ${error.message || "Unknown error"}`); // Safer error display
       
       // Add this to see backend response if available:

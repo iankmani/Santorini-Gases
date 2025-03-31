@@ -1,0 +1,114 @@
+/* src/Stylings/OrderConfirmation.css */
+.confirmation-page {
+    max-width: 600px;
+    margin: 2rem auto;
+    padding: 2rem;
+    background: #ffffff;
+    border-radius: 12px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+    text-align: center;
+  }
+  
+  .confirmation-header {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 1.5rem;
+  }
+  
+  .confirmation-header h1 {
+    color: #10b981; /* Emerald green for success */
+    font-size: 2rem;
+    margin-left: 0.5rem;
+  }
+  
+  .success-icon {
+    font-size: 2.5rem;
+    color: #10b981;
+  }
+  
+  .receipt-card {
+    background: #f8fafc;
+    border-radius: 10px;
+    padding: 1.5rem;
+    margin: 1.5rem 0;
+    border: 1px solid #e2e8f0;
+  }
+  
+  .receipt-row {
+    display: flex;
+    justify-content: space-between;
+    padding: 0.75rem 0;
+    border-bottom: 1px solid #edf2f7;
+  }
+  
+  .receipt-row:last-child {
+    border-bottom: none;
+  }
+  
+  .receipt-label {
+    font-weight: 600;
+    color: #4a5568;
+  }
+  
+  .receipt-value {
+    color: #1a202c;
+    font-weight: 500;
+  }
+  
+  .action-buttons {
+    display: flex;
+    gap: 1rem;
+    justify-content: center;
+    margin-top: 2rem;
+  }
+  
+  .print-btn, .home-btn {
+    padding: 0.75rem 1.5rem;
+    border-radius: 8px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s;
+    border: none;
+  }
+  
+  .print-btn {
+    background: #2563eb;
+    color: white;
+  }
+  
+  .print-btn:hover {
+    background: #1d4ed8;
+  }
+  
+  .home-btn {
+    background: white;
+    color: #2563eb;
+    border: 1px solid #2563eb;
+  }
+  
+  .home-btn:hover {
+    background: #f8fafc;
+  }
+  
+  /* Animation for success checkmark */
+  @keyframes checkmark {
+    from { transform: scale(0); opacity: 0; }
+    to { transform: scale(1); opacity: 1; }
+  }
+  
+  .success-icon {
+    animation: checkmark 0.5s cubic-bezier(0.42, 0, 0.58, 1.5) both;
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 640px) {
+    .confirmation-page {
+      margin: 1rem;
+      padding: 1.5rem;
+    }
+    
+    .action-buttons {
+      flex-direction: column;
+    }
+  }
