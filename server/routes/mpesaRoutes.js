@@ -1,13 +1,19 @@
-const express = require('express');
+import express from 'express';
+import {
+  initiateSTKPush,
+  checkPaymentStatus,
+  mpesaCallback,
+  getTransactionHistory
+} from '../controllers/mpesaController.js';
+
 const router = express.Router();
-const mpesaController = require('../controllers/mpesaController');
 
 /**
  * @route POST /api/mpesa/stkpush
  * @description Initiate M-Pesa STK push payment
  * @access Public
  */
-router.post('/stkpush', mpesaController.initiateSTKPush);
+router.post('/stkpush', initiateSTKPush);
 
 /**
  * @route GET /api/mpesa/status
@@ -15,14 +21,14 @@ router.post('/stkpush', mpesaController.initiateSTKPush);
  * @access Public
  * @param {String} checkoutRequestID - M-Pesa checkout request ID
  */
-router.get('/status', mpesaController.checkPaymentStatus);
+router.get('/status', checkPaymentStatus);
 
 /**
  * @route POST /api/mpesa/callback
  * @description M-Pesa payment callback URL
  * @access Public
  */
-router.post('/callback', mpesaController.mpesaCallback);
+router.post('/callback', mpesaCallback);
 
 /**
  * @route GET /api/mpesa/transactions
@@ -31,6 +37,6 @@ router.post('/callback', mpesaController.mpesaCallback);
  * @param {String} phoneNumber - Customer phone number
  * @param {Number} [limit=10] - Number of transactions to return
  */
-router.get('/transactions', mpesaController.getTransactionHistory);
+router.get('/transactions', getTransactionHistory);
 
-module.exports = router;
+export default router;

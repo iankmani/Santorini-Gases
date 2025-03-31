@@ -1,43 +1,67 @@
-const axios = require('axios');
-const mpesaConfig = require('../config/mpesaConfig');
-const prisma = require('../config/db');
+import axios from 'axios';
+import mpesaConfig from '../config/mpesaConfig.js';
+import prisma from '../config/db.js';
 
-const generateToken = async () => {
-  const auth = Buffer.from(`${mpesaConfig.consumerKey}:${mpesaConfig.consumerSecret}`).toString('base64');
+// Password generation utility function
+const generateMpesaPassword = (shortcode, passkey) => {
+  const timestamp = new Date()
+    .toISOString()
+    .replace(/[-:T.Z]/g, '')
+    .slice(0, 14); // Format: YYYYMMDDHHmmss
   
+  return Buffer.from(`${shortcode}${passkey}${timestamp}`).toString('base64');
+};
+
+// Timestamp generation utility function
+const getMpesaTimestamp = () => {
+  return new Date()
+    .toISOString()
+    .replace(/[-:T.Z]/g, '')
+    .slice(0, 14);
+};
+
+export const generateToken = async () => {
   try {
+    console.log("Using credentials:", mpesaConfig.consumerKey);
+    const auth = Buffer.from(`${mpesaConfig.consumerKey}:${mpesaConfig.consumerSecret}`).toString('base64');
+    
     const response = await axios.get(mpesaConfig.tokenURL, {
-      headers: {
-        Authorization: `Basic ${auth}`
-      }
+      headers: { Authorization: `Basic ${auth}` }
     });
+    
+    if (!response.data.access_token) {
+      throw new Error("No access token in response");
+    }
+    
     return response.data.access_token;
   } catch (error) {
-    console.error('Error generating token:', error.response?.data || error.message);
+    console.error("Token generation failed:", {
+      config: mpesaConfig,
+      error: error.response?.data || error.message
+    });
     throw error;
   }
 };
 
-const initiateSTKPush = async (phone, amount, accountReference, transactionDesc) => {
+export const initiateSTKPush = async (phone, amount, accountReference, transactionDesc = "Payment") => {
   const token = await generateToken();
-  const timestamp = new Date().toISOString().replace(/[-:.]/g, '').slice(0, -3);
-  const password = Buffer.from(`${mpesaConfig.businessShortCode}${mpesaConfig.passkey}${timestamp}`).toString('base64');
-  
+
   const payload = {
     BusinessShortCode: mpesaConfig.businessShortCode,
-    Password: password,
-    Timestamp: timestamp,
-    TransactionType: mpesaConfig.transactionType,
+    Password: generateMpesaPassword(mpesaConfig.businessShortCode, mpesaConfig.passkey),
+    Timestamp: getMpesaTimestamp(),
+    TransactionType: "CustomerPayBillOnline",
     Amount: amount,
     PartyA: phone,
     PartyB: mpesaConfig.businessShortCode,
     PhoneNumber: phone,
     CallBackURL: mpesaConfig.callbackURL,
-    AccountReference: accountReference,
-    TransactionDesc: transactionDesc
+    AccountReference: accountReference.substring(0, 12), // Ensure max 12 chars
+    TransactionDesc: transactionDesc.substring(0, 13) // Ensure max 13 chars
   };
 
   try {
+    console.log("Initiating STK Push with payload:", payload);
     const response = await axios.post(mpesaConfig.stkPushURL, payload, {
       headers: {
         Authorization: `Bearer ${token}`,
@@ -45,6 +69,7 @@ const initiateSTKPush = async (phone, amount, accountReference, transactionDesc)
       }
     });
 
+    console.log("M-Pesa Response:", response.data);
     const transaction = await prisma.transaction.create({
       data: {
         phoneNumber: phone,
@@ -63,12 +88,16 @@ const initiateSTKPush = async (phone, amount, accountReference, transactionDesc)
       responseDescription: response.data.ResponseDescription
     };
   } catch (error) {
-    console.error('STK Push error:', error.response?.data || error.message);
+    console.error('STK Push error:', {
+      error: error.message,
+      response: error.response?.data,
+      stack: error.stack
+    });
     throw error;
   }
 };
 
-const checkTransactionStatus = async (checkoutRequestID) => {
+export const checkTransactionStatus = async (checkoutRequestID) => {
   try {
     const transaction = await prisma.transaction.findUnique({
       where: { checkoutRequestID }
@@ -80,12 +109,10 @@ const checkTransactionStatus = async (checkoutRequestID) => {
     
     return transaction;
   } catch (error) {
-    console.error('Error checking transaction status:', error);
+    console.error('Error checking transaction status:', {
+      error: error.message,
+      stack: error.stack
+    });
     throw error;
   }
-};
-
-module.exports = {
-  initiateSTKPush,
-  checkTransactionStatus
 };

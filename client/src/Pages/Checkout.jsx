@@ -23,53 +23,47 @@ const Checkout = () => {
   // Handle M-Pesa payment
   const handleMpesaPayment = async () => {
     if (!isValidPhone(phone)) {
-      toast.error("Please enter a valid M-Pesa phone number (e.g., 254712345678)");
+      toast.error("Invalid phone format. Use 254712345678");
       return;
     }
-
-    if (total <= 0) {
-      toast.error("Your cart is empty");
-      return;
-    }
-
+  
     setIsProcessing(true);
-    toast.info("Initiating M-Pesa payment...");
-
+    
     try {
+      toast.info("Connecting to M-Pesa...", { toastId: "mpesa-loading" });
+      
       const response = await fetch("http://localhost:3001/api/mpesa/stkpush", {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          phone: phone,
+          phone,
           amount: total,
-          accountReference: `GAS-${Date.now()}`,
-          transactionDesc: "Gas purchase",
-        }),
+          accountReference: `GAS-${Date.now().toString().slice(-3)}`
+        })
       });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || "Payment request failed");
-      }
-
+  
       const data = await response.json();
       
-      toast.success(
-        <div>
-          <p>M-Pesa payment request sent!</p>
-          <p>Check your phone to complete payment</p>
-        </div>,
-        { autoClose: false }
-      );
-
-      // Start polling for payment status
+      if (!response.ok) {
+        throw new Error(data.message || "Payment failed");
+      }
+  
+      toast.update("mpesa-loading", {
+        render: "Check your phone to complete payment",
+        type: toast.TYPE.SUCCESS,
+        autoClose: 5000
+      });
+  
       await checkPaymentStatus(data.checkoutRequestID);
       
     } catch (error) {
-      toast.error(`Payment error: ${error.message}`);
-      console.error("Payment error:", error);
+      console.error("Full error object:", error); // Log complete error
+      toast.error(`Payment failed: ${error.message || "Unknown error"}`); // Safer error display
+      
+      // Add this to see backend response if available:
+      if (error.response) {
+        console.error("Backend response:", await error.response.json());
+      }
     } finally {
       setIsProcessing(false);
     }
