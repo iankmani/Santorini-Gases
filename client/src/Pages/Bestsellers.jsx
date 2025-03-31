@@ -42,7 +42,7 @@ const BestSellers = () => {
 
   const bestsellingProducts = [
     { id: 4, name: "15kg Gas Cylinder", image: fifteenkggas, price: 85 },
-    { id: 5, name: "6kg Gas Refill", image: gasrefill, price: 25 },
+    { id: 5, name: "6kg Gas Refill", image: gasrefill, price: 1 },
     { id: 6, name: "Portable Gas Grill", image: grill, price: 120 },
     { id: 7, name: "Camping Gas Stove", image: campingstove, price: 60 },
   ];

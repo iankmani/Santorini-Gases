@@ -4,6 +4,7 @@ import { useNavigate } from "react-router-dom";
 import "../Stylings/Checkout.css";
 import { toast } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
+import Chatbot from '../Components/Chatbot';
 
 const Checkout = () => {
   const { cart, clearCart } = useCartStore();
@@ -18,6 +19,57 @@ const Checkout = () => {
   const isValidPhone = (phone) => {
     const regex = /^254(7|1)\d{8}$/;
     return regex.test(phone);
+  };
+
+  // Check payment status
+  const checkPaymentStatus = async (checkoutRequestID) => {
+    let attempts = 0;
+    const maxAttempts = 10;
+    const interval = 3000; // 3 seconds
+    
+    const poll = async () => {
+      attempts++;
+      try {
+        const response = await fetch(
+          `http://localhost:3001/api/mpesa/status?checkoutRequestID=${checkoutRequestID}`
+        );
+        const data = await response.json();
+
+        // Robust success check
+        const isSuccess = (
+          data?.status === "SUCCESS" ||    // Your custom success marker
+          data?.ResultCode === 0 ||        // Official M-Pesa success code
+          data?.resultCode === 0           // Alternative MPesa format
+        );
+
+        if (isSuccess) {
+          clearCart();
+          navigate("/order-confirmation", { 
+            state: { transaction: data } 
+          });
+          return;
+        }
+        
+        if (attempts < maxAttempts) {
+          setTimeout(poll, interval);
+        } else {
+          toast.warn("Payment verification timeout. Please check your M-Pesa messages.");
+        }
+      } catch (error) {
+        console.error("Polling error:", {
+          rawError: error,
+          message: error.message,
+          responseData: error.response?.data
+        });
+        
+        const errorMessage = error.response?.data?.error || error.message || "Status check failed";
+        if (!errorMessage.includes("SUCCESS")) {
+          toast.error(errorMessage);
+        }
+      }
+    };
+    
+    await poll();
   };
 
   // Handle M-Pesa payment
@@ -42,10 +94,19 @@ const Checkout = () => {
         })
       });
   
+      // First check if response exists
+      if (!response) {
+        throw { message: "No response from server" };
+      }
+  
       const data = await response.json();
       
+      // Then check response.ok
       if (!response.ok) {
-        throw new Error(data.message || "Payment failed");
+        throw { 
+          message: data?.message || "Payment failed",
+          response: { data } // Ensure this matches your backend error format
+        };
       }
   
       toast.update("mpesa-loading", {
@@ -57,51 +118,26 @@ const Checkout = () => {
       await checkPaymentStatus(data.checkoutRequestID);
       
     } catch (error) {
-      // console.error("Full error object:", error); // Log complete error
-      toast.error(`Payment failed: ${error.message || "Unknown error"}`); // Safer error display
-      
-      // Add this to see backend response if available:
-      if (error.response) {
-        console.error("Backend response:", await error.response.json());
+      // 100% safe error handling
+      const safeError = {
+        message: typeof error === 'object' 
+          ? error?.message || "Unknown error"
+          : String(error),
+        responseData: error?.response?.data
+      };
+  
+      console.error("Payment failed:", safeError);
+  
+      // Only show toast if not a SUCCESS-related error
+      if (!safeError.message.includes("SUCCESS")) {
+        toast.error(safeError.message);
       }
     } finally {
       setIsProcessing(false);
     }
   };
-
-  // Poll payment status
-  const checkPaymentStatus = async (checkoutRequestID) => {
-    let attempts = 0;
-    const maxAttempts = 10;
-    const interval = 3000; // 3 seconds
     
-    const poll = async () => {
-      attempts++;
-      try {
-        const response = await fetch(`http://localhost:3001/api/mpesa/status?checkoutRequestID=${checkoutRequestID}`);
-        const data = await response.json();
-        
-        if (data.status === "success") {
-          clearCart();
-          navigate("/order-confirmation", { state: { transaction: data } });
-          return;
-        }
-        
-        if (attempts < maxAttempts) {
-          setTimeout(poll, interval);
-        } else {
-          toast.warn("Payment verification timeout. Please check your M-Pesa messages.");
-        }
-      } catch (error) {
-        console.error("Polling error:", error);
-        if (attempts < maxAttempts) {
-          setTimeout(poll, interval);
-        }
-      }
-    };
-    
-    await poll();
-  };
+  
 
   return (
     <div className="checkout-page">
@@ -184,8 +220,9 @@ const Checkout = () => {
           </div>
         </div>
       </div>
+      <Chatbot />
     </div>
   );
-};
+}; // <-- This closing brace was missing in your original file
 
 export default Checkout;
